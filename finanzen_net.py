@@ -33,6 +33,14 @@ class Dividend:
         self.dividend_soup = finanzen_net.dividend_soup
         self.fundamentals_soup = finanzen_net.fundamentals_soup
 
+    @staticmethod
+    def number_string_to_float(number, percentage=True):
+        number = number.replace(',', '.')
+        if percentage:
+            return float(number[:-1]) / 100
+        else:
+            return float(number)
+
     def get_dividends(self, force=False):
         if force or self.dividend_table is None:
             dividends = []
@@ -46,7 +54,7 @@ class Dividend:
                         year = tds[4].get_text()
                         if not dividend.startswith('*'):
                             years.append(int(year))
-                            dividends.append(float(dividend.strip().replace(',', '.')))
+                            dividends.append(self.number_string_to_float(dividend.strip(), percentage=False))
 
             self.dividend_table = pd.Series(data=dividends, index=years)
             return self.dividend_table
@@ -62,6 +70,17 @@ class Dividend:
         else:
             raise IndexError(f'No dividend history for {self.company} {n_years} years ago.')
 
+    def get_years_of_increase(self):
+        if self.dividend_table is None:
+            self.get_dividends()
+        s = self.dividend_table.diff()
+        now = s.index[0]
+        decrease = s[s > 0].index.max()
+        if decrease is not pd.np.nan:
+            return now - decrease - 1
+        else:
+            return len(self.dividend_table)
+
     def get_dividend_coverage(self):
         res = namedtuple('DividendCoverage', 'earnings_growth dividend_yield payout_ratio')
 
@@ -69,10 +88,10 @@ class Dividend:
         for tr in table.find_all('tr'):
             tds = tr.find_all('td')
             if tds[0].get_text() == 'langfristiges Wachstum':
-                res.earnings_growth = float(tds[1].get_text()[1:-1].replace(',', '.')) / 100
+                res.earnings_growth = self.number_string_to_float(tds[1].get_text())
             elif tds[0].get_text() == 'Dividenden Rendite':
-                res.dividend_yield = float(tds[1].get_text()[1:-1].replace(',', '.')) / 100
-                res.payout_ratio = float(re.findall(' ([0-9,]+)\%', tds[4].get_text())[0].replace(',', '.')) / 100
+                res.dividend_yield = self.number_string_to_float(tds[1].get_text())
+                res.payout_ratio = self.number_string_to_float(re.findall(' ([0-9,]+)%', tds[4].get_text())[0])
         return res
 
 
@@ -94,10 +113,3 @@ class Moodys:
             return potential_credit_score.get_text()
         else:
             raise LookupError(f'No risk score for {self.company}.')
-
-    def get_outlook(self):
-        potential_outlook = self.stock_soup.find('div', class_='tachoValue tachoKz')
-        if potential_outlook:
-            return float(potential_outlook.find('strong').get_text()[1:-1].replace(',', '.')) / 100
-        else:
-            raise LookupError(f'No outlook for {self.company}.')
