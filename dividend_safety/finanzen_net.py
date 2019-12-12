@@ -5,11 +5,10 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
-import shelve
 
 
 class FinanzenNet:
-    def __init__(self, company, force_reload=False):
+    def __init__(self, company, force_reload=True):
         self.company = company
 
         self.dividend_soup = self.get_page('dividende', force_reload)
@@ -17,15 +16,9 @@ class FinanzenNet:
         self.fundamentals_soup = self.get_page('fundamentalanalyse', force_reload)
 
     def get_page(self, website_category, force_reload):
-        with shelve.open('finanzen_net.shelve') as s:
-            saving_name = '/'.join([self.company, website_category])
-            if saving_name in s.keys() and not force_reload:
-                print(f'Loading {self.company}/{website_category} from disk...')
-                page = s[saving_name]
-            else:
-                print(f'Downloading {self.company}/{website_category} from finanzen.net...')
-                page = requests.get(f'https://www.finanzen.net/{website_category}/{self.company}')
-                s[saving_name] = page
+        print(f'Downloading {self.company}/{website_category} from finanzen.net...')
+        page = requests.get(f'https://www.finanzen.net/{website_category}/{self.company}')
+
         return BeautifulSoup(page.content, 'html.parser')
 
 
